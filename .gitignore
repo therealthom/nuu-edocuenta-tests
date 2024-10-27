@@ -14,3 +14,4 @@ transacciones.json
 # Ambiente
 .env
 venv/
+.venv/
