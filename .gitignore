@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+
+# Archivos generados
+logs/
+*.log
+transacciones.json
+
+# PDFs y documentos
+*.pdf
+*.PDF
+
+# Ambiente
+.env
+venv/
