@@ -52,100 +52,165 @@ class ProcesadorEstadoCuenta:
         except:
             return None
 
-    def _determinar_tipo_monto(self, linea: str, monto: str) -> tuple:
-        """
-        Determina si un monto es retiro, depósito o saldo basado en su posición en la línea
-        """
-        texto_antes_monto = linea[:linea.find(monto)]
-        palabras = texto_antes_monto.split()
-        
-        # Contar tabulaciones o espacios significativos
-        tabs = texto_antes_monto.count('\t')
-        espacios = len(texto_antes_monto) - len(texto_antes_monto.lstrip())
-        
-        logger.info(f"Analizando monto: {monto}")
-        logger.info(f"Texto antes del monto: '{texto_antes_monto}'")
-        logger.info(f"Tabs: {tabs}, Espacios: {espacios}")
-        
-        # Si el monto está en la última columna, es saldo
-        if linea.strip().endswith(monto):
-            return (None, None, monto)
-        
-        # Si hay palabras clave antes del monto
-        texto_lower = texto_antes_monto.lower()
-        if 'retiro' in texto_lower or 'cargo' in texto_lower:
-            return (monto, None, None)
-        elif 'deposito' in texto_lower or 'abono' in texto_lower:
-            return (None, monto, None)
-        
-        # Por posición en la línea
-        if espacios < 40:  # Ajusta estos valores según el formato de tu PDF
-            return (monto, None, None)  # Retiro
-        elif espacios < 60:
-            return (None, monto, None)  # Depósito
+    def _extraer_tabla(self, page) -> List[List[str]]:
+        """Extrae la tabla usando pdfplumber y retorna las filas"""
+        tabla = page.extract_table()
+        logger.info("Contenido extraído de la página:")
+        if tabla:
+            for fila in tabla:
+                logger.info(f"FILA: {fila}")
         else:
-            return (None, None, monto)  # Saldo
+            logger.warning("No se detectó tabla en la página")
+        return [[str(cell).strip() if cell else '' for cell in row] for row in tabla] if tabla else []
 
-    def _procesar_montos_en_linea(self, linea: str) -> tuple:
+    def _detectar_columnas(self, texto: str) -> Dict[str, int]:
         """
-        Procesa todos los montos en una línea y los asigna según su posición
-        Retorna (retiro, deposito, saldo)
+        Detecta las posiciones de las columnas usando el encabezado
         """
-        retiro = deposito = saldo = None
-        montos = self.patron_monto.findall(linea)
+        for linea in texto.split('\n'):
+            if 'FECHA' in linea and 'CONCEPTO' in linea and 'RETIROS' in linea:
+                logger.info(f"Encabezado encontrado: [{linea}]")
+                
+                # Encontrar posiciones exactas
+                pos_fecha = linea.find('FECHA')
+                pos_concepto = linea.find('CONCEPTO')
+                pos_retiros = linea.find('RETIROS')
+                pos_depositos = linea.find('DEPOSITOS')
+                pos_saldo = linea.find('SALDO')
+                
+                logger.info(f"Posiciones - FECHA: {pos_fecha}, CONCEPTO: {pos_concepto}, "
+                           f"RETIROS: {pos_retiros}, DEPOSITOS: {pos_depositos}, SALDO: {pos_saldo}")
+                
+                if all(pos >= 0 for pos in [pos_fecha, pos_concepto, pos_retiros, pos_depositos, pos_saldo]):
+                    columnas = {
+                        'fecha': (0, pos_concepto),
+                        'concepto': (pos_concepto, pos_retiros),
+                        'retiros': (pos_retiros, pos_depositos),
+                        'depositos': (pos_depositos, pos_saldo),
+                        'saldo': (pos_saldo, float('inf'))
+                    }
+                    logger.info(f"Rangos de columnas detectados: {columnas}")
+                    return columnas
         
+        return None
+
+    def _determinar_tipo_monto(self, linea: str, monto: str, columnas: Dict) -> tuple:
+        """
+        Determina el tipo de monto basado en su posición y los rangos de columnas
+        """
+        if not columnas:
+            return None, None, None
+        
+        pos_monto = linea.find(monto)
+        logger.info(f"Analizando monto {monto} en posición {pos_monto}")
+        
+        # Determinar en qué columna cae el monto
+        if columnas['retiros'][0] <= pos_monto < columnas['retiros'][1]:
+            logger.info(f"Monto {monto} identificado como RETIRO")
+            return monto, None, None
+        elif columnas['depositos'][0] <= pos_monto < columnas['depositos'][1]:
+            logger.info(f"Monto {monto} identificado como DEPÓSITO")
+            return None, monto, None
+        elif columnas['saldo'][0] <= pos_monto:
+            logger.info(f"Monto {monto} identificado como SALDO")
+            return None, None, monto
+        
+        return None, None, None
+
+    def _procesar_montos_en_linea(self, linea: str, concepto: str) -> tuple:
+        """
+        Procesa los montos en una línea usando las reglas de negocio:
+        - Si el concepto contiene 'PAGO RECIBIDO', es un depósito
+        - Si hay dos montos, el último siempre es saldo
+        - Si no dice 'PAGO RECIBIDO' y hay dos montos, el primero es retiro
+        """
+        montos = self.patron_monto.findall(linea)
         if not montos:
-            return retiro, deposito, saldo
-            
-        logger.info(f"\nProcesando línea: {linea}")
+            return None, None, None
+        
+        logger.info(f"Línea con montos: [{linea}]")
+        logger.info(f"Concepto: [{concepto}]")
         logger.info(f"Montos encontrados: {montos}")
         
-        # Dividir la línea en columnas aproximadas
-        longitud_linea = len(linea)
+        retiro = deposito = saldo = None
+        es_pago_recibido = 'PAGO RECIBIDO' in concepto.upper()
         
-        for monto in montos:
-            pos_monto = linea.find(monto)
-            logger.info(f"Analizando monto: {monto} en posición: {pos_monto}")
+        if len(montos) == 2:
+            # El último monto siempre es saldo
+            saldo = self._limpiar_monto(montos[1])
+            logger.info(f"Segundo monto es SALDO: {saldo}")
             
-            # Determinar la columna basado en la posición relativa
-            if pos_monto < longitud_linea * 0.4:  # Primera mitad - Columna RETIROS
-                retiro = self._limpiar_monto(monto)
-                logger.info(f"RETIRO detectado: {retiro}")
-            elif pos_monto < longitud_linea * 0.7:  # Segunda mitad - Columna DEPOSITOS
-                deposito = self._limpiar_monto(monto)
-                logger.info(f"DEPÓSITO detectado: {deposito}")
-            else:  # Última parte - Columna SALDO
-                saldo = self._limpiar_monto(monto)
-                logger.info(f"SALDO detectado: {saldo}")
+            # El primer monto es depósito o retiro según el concepto
+            if es_pago_recibido:
+                deposito = self._limpiar_monto(montos[0])
+                logger.info(f"PAGO RECIBIDO - Primer monto es DEPÓSITO: {deposito}")
+            else:
+                retiro = self._limpiar_monto(montos[0])
+                logger.info(f"Primer monto es RETIRO: {retiro}")
         
-        logger.info(f"Resultado final de la línea - Retiro: {retiro}, Depósito: {deposito}, Saldo: {saldo}")
+        elif len(montos) == 1:
+            # Un solo monto es depósito o retiro según el concepto
+            if es_pago_recibido:
+                deposito = self._limpiar_monto(montos[0])
+                logger.info(f"PAGO RECIBIDO - Monto único es DEPÓSITO: {deposito}")
+            else:
+                retiro = self._limpiar_monto(montos[0])
+                logger.info(f"Monto único es RETIRO: {retiro}")
+        
         return retiro, deposito, saldo
+
+    def _esta_en_tabla(self, linea: str) -> bool:
+        """
+        Determina si una línea pertenece a la tabla de operaciones
+        """
+        # Ignorar líneas que no son parte de la tabla
+        if any(texto in linea for texto in [
+            'DETALLE DE OPERACIONES',
+            'ESTADO DE CUENTA',
+            'CLIENTE:',
+            'Página:',
+            '.B15CHDA',
+            'GOBIERNO DEL ESTADO'
+        ]):
+            return False
+        
+        # La línea debe tener el formato esperado (fecha o espacios al inicio)
+        return bool(self._es_fecha(linea) or linea.startswith(' '))
 
     def procesar_pdf(self, ruta_pdf: str) -> Dict:
         transacciones = []
         transaccion_actual = None
         lineas_concepto = []
+        en_tabla = False
         
         with pdfplumber.open(ruta_pdf) as pdf:
-            for num_pagina, pagina in enumerate(pdf.pages, 1):
-                texto = pagina.extract_text()
-                if not texto:
-                    continue
-                
-                logger.info(f"\nProcesando página {num_pagina}")
+            for pagina in pdf.pages:
+                texto = pagina.extract_text(layout=True)
                 
                 for linea in texto.split('\n'):
-                    linea = linea.strip()
-                    if not linea or any(x in linea for x in ['DETALLE DE OPERACIONES', 'ESTADO DE CUENTA', 'Página:', 'CLIENTE:']):
+                    # Ignorar líneas vacías
+                    if not linea.strip():
                         continue
-
+                    
+                    # Verificar si estamos en la tabla
+                    if 'DETALLE DE OPERACIONES' in linea:
+                        en_tabla = True
+                        continue
+                    
+                    # Solo procesar líneas dentro de la tabla
+                    if not en_tabla or not self._esta_en_tabla(linea):
+                        continue
+                    
+                    logger.info(f"Procesando línea de tabla: [{linea}]")
+                    
+                    # Si es una nueva fecha
                     if self._es_fecha(linea):
-                        # Guardar transacción anterior si existe
+                        logger.info(f"\nNueva fecha detectada: {linea[:6]}")
+                        
                         if transaccion_actual:
                             logger.info(f"Guardando transacción: {asdict(transaccion_actual)}")
                             transacciones.append(transaccion_actual)
                         
-                        # Iniciar nueva transacción
                         transaccion_actual = Transaccion(
                             fecha=linea[:6].strip(),
                             concepto=linea[6:].strip(),
@@ -154,32 +219,27 @@ class ProcesadorEstadoCuenta:
                             saldo=None
                         )
                         lineas_concepto = [linea[6:].strip()]
-                        logger.info(f"\nNueva transacción iniciada: {linea[:6]}")
                     
                     elif transaccion_actual:
-                        # Procesar montos en la línea
-                        retiro, deposito, saldo = self._procesar_montos_en_linea(linea)
-                        
-                        # Actualizar transacción con los montos encontrados
-                        if retiro:
-                            transaccion_actual.retiro = retiro
-                            logger.info(f"Asignado retiro: {retiro}")
-                        if deposito:
-                            transaccion_actual.deposito = deposito
-                            logger.info(f"Asignado depósito: {deposito}")
-                        if saldo:
-                            transaccion_actual.saldo = saldo
-                            logger.info(f"Asignado saldo: {saldo}")
-                        
-                        # Si no hay montos, agregar al concepto
-                        if not any([retiro, deposito, saldo]):
-                            lineas_concepto.append(linea)
+                        if self.patron_monto.search(linea):
+                            retiro, deposito, saldo = self._procesar_montos_en_linea(
+                                linea, 
+                                transaccion_actual.concepto
+                            )
+                            
+                            if retiro:
+                                transaccion_actual.retiro = retiro
+                            if deposito:
+                                transaccion_actual.deposito = deposito
+                            if saldo:
+                                transaccion_actual.saldo = saldo
+                        else:
+                            lineas_concepto.append(linea.strip())
                             transaccion_actual.concepto = ' '.join(lineas_concepto).strip()
 
-        # Procesar última transacción
+        # Guardar última transacción
         if transaccion_actual:
             transacciones.append(transaccion_actual)
-            logger.info(f"Guardando última transacción: {asdict(transaccion_actual)}")
 
         return {
             "estado_cuenta": {
