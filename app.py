@@ -131,59 +131,48 @@ class ProcesadorEstadoCuenta:
                     if not en_detalle_operaciones:
                         continue
                     
-                    # Procesar línea
                     if self._es_fecha(linea):
                         logger.info(f"\nNueva fecha encontrada: {linea[:6]} en página {num_pagina}")
                         
-                        # Guardar transacción anterior
                         if transaccion_actual:
-                            logger.info("Guardando transacción anterior:")
+                            # Solo mostramos la transacción completa cuando la guardamos
+                            logger.info("Transacción completada:")
                             logger.info(json.dumps(asdict(transaccion_actual), indent=2, ensure_ascii=False))
                             transacciones.append(transaccion_actual)
                         
-                        # Iniciar nueva transacción
                         transaccion_actual = Transaccion(
                             fecha=linea[:6],
                             concepto=linea[6:].strip(),
                             retiro=None,
                             deposito=None,
                             saldo=None,
-                            pagina=num_pagina  # Agregamos el número de página
+                            pagina=num_pagina
                         )
-                        logger.info("Nueva transacción creada:")
-                        logger.info(json.dumps(asdict(transaccion_actual), indent=2, ensure_ascii=False))
                         lineas_concepto = [linea[6:].strip()]
                     
                     elif transaccion_actual:
                         if self.patron_monto.search(linea):
                             logger.info(f"Procesando línea con montos: {linea}")
-                            # Procesar línea con montos
                             retiro, deposito, saldo = self._procesar_linea_montos(
                                 linea, 
                                 transaccion_actual.concepto
                             )
                             
-                            if retiro: 
-                                transaccion_actual.retiro = retiro
-                                logger.info(f"Retiro asignado: {retiro}")
-                            if deposito: 
-                                transaccion_actual.deposito = deposito
-                                logger.info(f"Depósito asignado: {deposito}")
-                            if saldo: 
-                                transaccion_actual.saldo = saldo
-                                logger.info(f"Saldo asignado: {saldo}")
+                            if retiro: transaccion_actual.retiro = retiro
+                            if deposito: transaccion_actual.deposito = deposito
+                            if saldo: transaccion_actual.saldo = saldo
                             
+                            # Mostramos la transacción después de procesar montos
                             logger.info("Transacción actualizada:")
                             logger.info(json.dumps(asdict(transaccion_actual), indent=2, ensure_ascii=False))
                         else:
-                            # Agregar línea al concepto
+                            # Solo concatenamos el concepto sin logging
                             lineas_concepto.append(linea.strip())
                             transaccion_actual.concepto = ' '.join(lineas_concepto).strip()
-                            logger.info(f"Concepto actualizado: {transaccion_actual.concepto}")
         
         # Guardar última transacción
         if transaccion_actual:
-            logger.info("\nGuardando última transacción:")
+            logger.info("\nÚltima transacción:")
             logger.info(json.dumps(asdict(transaccion_actual), indent=2, ensure_ascii=False))
             transacciones.append(transaccion_actual)
         
