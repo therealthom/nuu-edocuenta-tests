@@ -6,26 +6,29 @@ import json
 import logging
 from decimal import Decimal
 import os
+from datetime import datetime
 
 # Configuración del logging a archivo
 def setup_logger():
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     
+    # Generar nombre único para el archivo de log
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_filename = f'logs/procesamiento_{timestamp}.log'
+    
     # Crear directorio logs si no existe
     if not os.path.exists('logs'):
         os.makedirs('logs')
     
     # Handler para archivo
-    fh = logging.FileHandler('logs/procesamiento.log')
+    fh = logging.FileHandler(log_filename)
     fh.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     logger.addHandler(fh)
     
-    return logger
-
-logger = setup_logger()
+    return logger, log_filename
 
 @dataclass
 class Transaccion:
@@ -194,17 +197,19 @@ class ProcesadorEstadoCuenta:
             }
         }
 
-def procesar_archivo(ruta_pdf: str, ruta_salida: str = "transacciones.json") -> Dict:
+def procesar_archivo(ruta_pdf: str, ruta_salida: str = None) -> Dict:
     try:
-        # Limpiar archivo de log
-        if os.path.exists('logs/procesamiento.log'):
-            open('logs/procesamiento.log', 'w').close()
-            logger.info("Archivo de log limpiado")
+        # Generar nombres únicos para los archivos
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        # Limpiar archivo de salida JSON
-        if os.path.exists(ruta_salida):
-            open(ruta_salida, 'w').close()
-            logger.info(f"Archivo {ruta_salida} limpiado")
+        # Configurar logger con nuevo nombre de archivo
+        global logger
+        logger, log_filename = setup_logger()
+        logger.info(f"Iniciando nuevo procesamiento con timestamp: {timestamp}")
+        
+        # Generar nombre de archivo de salida si no se especifica
+        if ruta_salida is None:
+            ruta_salida = f"transacciones_{timestamp}.json"
         
         procesador = ProcesadorEstadoCuenta()
         resultado = procesador.procesar_pdf(ruta_pdf)
@@ -222,4 +227,12 @@ def procesar_archivo(ruta_pdf: str, ruta_salida: str = "transacciones.json") -> 
 
 if __name__ == "__main__":
     ruta_pdf = "/Users/tom/70061797449-12.pdf"
+    resultado = procesar_archivo(ruta_pdf)
+    ruta_pdf = "/Users/tom/70061797449-07.pdf"
+    resultado = procesar_archivo(ruta_pdf)
+    ruta_pdf = "/Users/tom/70061797449-03.pdf"
+    resultado = procesar_archivo(ruta_pdf)
+    ruta_pdf = "/Users/tom/70061797449-05.pdf"
+    resultado = procesar_archivo(ruta_pdf)
+    ruta_pdf = "/Users/tom/70061797449-06.pdf"
     resultado = procesar_archivo(ruta_pdf)

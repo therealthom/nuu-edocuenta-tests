@@ -5,7 +5,7 @@ __pycache__/
 # Archivos generados
 logs/
 *.log
-transacciones.json
+transacciones*.json
 
 # PDFs y documentos
 *.pdf
