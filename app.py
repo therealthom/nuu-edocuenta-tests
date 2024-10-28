@@ -47,7 +47,11 @@ class ReglasNegocio:
     @staticmethod
     def procesar_montos(montos: List[str], concepto: str) -> tuple:
         """
-        Aplica las reglas de negocio para determinar retiro, depósito y saldo
+        Aplica las reglas de negocio para determinar retiro, depósito y saldo:
+        - Si hay 2 montos: el segundo es saldo y el primero es depósito o retiro según el concepto
+        - Si hay 1 monto: es depósito si el concepto indica pago recibido, sino es retiro
+        - Los montos se asignan como string con formato decimal (ej: "1234.56")
+        - Si un monto no aplica se asigna como None
         """
         retiro = deposito = saldo = None
         logger.info(f"Procesando montos: {montos}")
@@ -95,7 +99,8 @@ class ProcesadorEstadoCuenta:
     
     def _es_fecha(self, texto: str) -> bool:
         """Verifica si un texto comienza con una fecha (DD MMM)"""
-        return bool(self.patron_fecha.match(str(texto).strip()))
+        texto = texto.strip()  # Limpiamos espacios al inicio y final
+        return bool(self.patron_fecha.match(texto))
     
     def _procesar_linea_montos(self, linea: str, concepto: str) -> tuple:
         """Procesa una línea que contiene montos"""
@@ -119,7 +124,8 @@ class ProcesadorEstadoCuenta:
                 logger.info(f"\nProcesando página {num_pagina}")
                 
                 for linea in texto.split('\n'):
-                    if not linea.strip():
+                    linea = linea.strip()  # Limpiamos espacios al inicio y final
+                    if not linea:
                         continue
                     
                     # Control de sección
@@ -132,23 +138,28 @@ class ProcesadorEstadoCuenta:
                         continue
                     
                     if self._es_fecha(linea):
-                        logger.info(f"\nNueva fecha encontrada: {linea[:6]} en página {num_pagina}")
+                        logger.info(f"\nNueva fecha encontrada: {linea[:7]}")  # Cambiado de 6 a 7 para incluir "DD MMM"
                         
                         if transaccion_actual:
-                            # Solo mostramos la transacción completa cuando la guardamos
                             logger.info("Transacción completada:")
                             logger.info(json.dumps(asdict(transaccion_actual), indent=2, ensure_ascii=False))
                             transacciones.append(transaccion_actual)
                         
+                        # Limpiamos la línea y la fecha
+                        linea_limpia = linea.strip()
+                        fecha = linea_limpia[:7].strip()  # DD MMM y quitamos espacios extra
+                        concepto = linea_limpia[7:].strip()
+                        
                         transaccion_actual = Transaccion(
-                            fecha=linea[:6],
-                            concepto=linea[6:].strip(),
+                            fecha=fecha.replace("  ", " "),  # Reemplazamos espacios múltiples por uno solo
+                            concepto=concepto,
                             retiro=None,
                             deposito=None,
                             saldo=None,
                             pagina=num_pagina
                         )
-                        lineas_concepto = [linea[6:].strip()]
+                        lineas_concepto = [concepto]
+                        logger.info(f"Nueva transacción creada con fecha: [{fecha.replace('  ', ' ')}]")
                     
                     elif transaccion_actual:
                         if self.patron_monto.search(linea):
