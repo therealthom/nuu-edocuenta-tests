@@ -228,11 +228,3 @@ def procesar_archivo(ruta_pdf: str, ruta_salida: str = None) -> Dict:
 if __name__ == "__main__":
     ruta_pdf = "/Users/tom/70061797449-12.pdf"
     resultado = procesar_archivo(ruta_pdf)
-    ruta_pdf = "/Users/tom/70061797449-07.pdf"
-    resultado = procesar_archivo(ruta_pdf)
-    ruta_pdf = "/Users/tom/70061797449-03.pdf"
-    resultado = procesar_archivo(ruta_pdf)
-    ruta_pdf = "/Users/tom/70061797449-05.pdf"
-    resultado = procesar_archivo(ruta_pdf)
-    ruta_pdf = "/Users/tom/70061797449-06.pdf"
-    resultado = procesar_archivo(ruta_pdf)

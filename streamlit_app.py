@@ -7,6 +7,7 @@ from datetime import datetime
 import pdfplumber
 import time
 import pandas as pd
+import glob
 
 st.set_page_config(page_title="Procesador de Estados de Cuenta", layout="wide")
 
@@ -49,6 +50,10 @@ def main():
             st.session_state.resultados = []
             os.makedirs('temp', exist_ok=True)
             
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            json_path = f"transacciones_{timestamp}.json"
+            st.session_state.json_path = json_path  # Guardamos la ruta del JSON
+            
             for uploaded_file in uploaded_files:
                 st.write(f"⏳ Procesando: {uploaded_file.name}")
                 temp_pdf_path = f"temp/{uploaded_file.name}"
@@ -60,19 +65,8 @@ def main():
                     resultado = procesar_archivo(temp_pdf_path)
                     
                     if resultado:
-                        # Generar nombre del archivo JSON
-                        base_name = os.path.splitext(uploaded_file.name)[0]
-                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        json_path = f"{base_name}_{timestamp}.json"
-                        
-                        # Guardar JSON
-                        with open(json_path, 'w', encoding='utf-8') as f:
-                            json.dump(resultado, f, ensure_ascii=False, indent=2)
-                        
-                        # Guardar resultado
                         st.session_state.resultados.append({
                             'nombre': uploaded_file.name,
-                            'json_path': json_path,
                             'estado': 'success'
                         })
                     
@@ -96,9 +90,15 @@ def main():
         for resultado in st.session_state.resultados:
             if resultado['estado'] == 'success':
                 st.success(f"✅ {resultado['nombre']} procesado correctamente")
-                st.markdown(get_download_link(resultado['json_path'], "📥 Descargar JSON"), unsafe_allow_html=True)
             else:
                 st.error(f"❌ Error procesando {resultado['nombre']}: {resultado['error']}")
+        
+        # Mostrar enlace de descarga si existe el JSON
+        if hasattr(st.session_state, 'json_path'):
+            json_files = sorted(glob.glob("transacciones_*.json"))
+            if json_files:  # Tomar el archivo JSON más reciente
+                latest_json = json_files[-1]
+                st.markdown(get_download_link(latest_json, "📥 Descargar JSON"), unsafe_allow_html=True)
 
     if st.session_state.procesando:
         st.warning('⏳ Procesamiento en curso. Por favor, espere...')
