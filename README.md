@@ -43,6 +43,7 @@ Aplicación web desarrollada con Streamlit para procesar estados de cuenta en fo
             ├── temp/
             ├── logs/
             └── output/
+```
 
 ## Características
 - Procesamiento múltiple de archivos PDF
