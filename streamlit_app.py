@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from procesador_pdf import procesar_archivo
+from procesador_pdf import procesar_archivo, get_resource_paths
 import base64
 import json
 from datetime import datetime
@@ -56,18 +56,22 @@ def main():
             
             for uploaded_file in uploaded_files:
                 st.write(f"⏳ Procesando: {uploaded_file.name}")
-                temp_pdf_path = f"temp/{uploaded_file.name}"
                 
                 try:
-                    with open(temp_pdf_path, "wb") as f:
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    paths = get_resource_paths(uploaded_file.name, timestamp)
+                    
+                    # Guardar archivo temporal
+                    with open(paths['pdf'], "wb") as f:
                         f.write(uploaded_file.getvalue())
                     
-                    resultado = procesar_archivo(temp_pdf_path)
+                    resultado, paths = procesar_archivo(paths['pdf'])
                     
                     if resultado:
                         st.session_state.resultados.append({
                             'nombre': uploaded_file.name,
-                            'estado': 'success'
+                            'estado': 'success',
+                            'paths': paths
                         })
                     
                 except Exception as e:
@@ -78,8 +82,8 @@ def main():
                     })
                 
                 finally:
-                    if os.path.exists(temp_pdf_path):
-                        os.remove(temp_pdf_path)
+                    if os.path.exists(paths['pdf']):
+                        os.remove(paths['pdf'])
             
             st.session_state.procesando = False
             st.rerun()
@@ -90,15 +94,21 @@ def main():
         for resultado in st.session_state.resultados:
             if resultado['estado'] == 'success':
                 st.success(f"✅ {resultado['nombre']} procesado correctamente")
+                
+                # Mostrar enlaces de descarga usando dos columnas
+                col1, col2 = st.columns(2)
+                col1.markdown(get_download_link(
+                    resultado['paths']['json'], 
+                    "📥 Descargar JSON"
+                ), unsafe_allow_html=True)
+                
+                if os.path.exists(resultado['paths']['log']):
+                    col2.markdown(get_download_link(
+                        resultado['paths']['log'], 
+                        "📋 Descargar LOG"
+                    ), unsafe_allow_html=True)
             else:
                 st.error(f"❌ Error procesando {resultado['nombre']}: {resultado['error']}")
-        
-        # Mostrar enlace de descarga si existe el JSON
-        if hasattr(st.session_state, 'json_path'):
-            json_files = sorted(glob.glob("transacciones_*.json"))
-            if json_files:  # Tomar el archivo JSON más reciente
-                latest_json = json_files[-1]
-                st.markdown(get_download_link(latest_json, "📥 Descargar JSON"), unsafe_allow_html=True)
 
     if st.session_state.procesando:
         st.warning('⏳ Procesamiento en curso. Por favor, espere...')

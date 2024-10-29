@@ -9,26 +9,18 @@ import os
 from datetime import datetime
 
 # Configuración del logging a archivo
-def setup_logger():
+def setup_logger(log_path: str):
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     
-    # Generar nombre único para el archivo de log
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_filename = f'logs/procesamiento_{timestamp}.log'
-    
-    # Crear directorio logs si no existe
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
-    
     # Handler para archivo
-    fh = logging.FileHandler(log_filename)
+    fh = logging.FileHandler(log_path)
     fh.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     logger.addHandler(fh)
     
-    return logger, log_filename
+    return logger
 
 @dataclass
 class Transaccion:
@@ -197,29 +189,46 @@ class ProcesadorEstadoCuenta:
             }
         }
 
-def procesar_archivo(ruta_pdf: str, ruta_salida: str = None) -> Dict:
+def get_resource_paths(pdf_filename: str, timestamp: str) -> Dict[str, str]:
+    """Genera las rutas de recursos para un archivo PDF"""
+    base_dir = f"resources/uploads/{os.path.splitext(pdf_filename)[0]}"
+    
+    paths = {
+        'base': base_dir,
+        'temp': f"{base_dir}/temp",
+        'logs': f"{base_dir}/logs",
+        'output': f"{base_dir}/output",
+        'pdf': f"{base_dir}/temp/{pdf_filename}",
+        'log': f"{base_dir}/logs/procesamiento_{timestamp}.log",
+        'json': f"{base_dir}/output/transacciones_{timestamp}.json"
+    }
+    
+    # Crear directorios
+    for dir_path in [paths['temp'], paths['logs'], paths['output']]:
+        os.makedirs(dir_path, exist_ok=True)
+        
+    return paths
+
+def procesar_archivo(ruta_pdf: str) -> Dict:
     try:
-        # Generar nombres únicos para los archivos
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        pdf_filename = os.path.basename(ruta_pdf)
+        paths = get_resource_paths(pdf_filename, timestamp)
         
-        # Configurar logger con nuevo nombre de archivo
+        # Configurar logger
         global logger
-        logger, log_filename = setup_logger()
+        logger = setup_logger(paths['log'])
         logger.info(f"Iniciando nuevo procesamiento con timestamp: {timestamp}")
-        
-        # Generar nombre de archivo de salida si no se especifica
-        if ruta_salida is None:
-            ruta_salida = f"transacciones_{timestamp}.json"
         
         procesador = ProcesadorEstadoCuenta()
         resultado = procesador.procesar_pdf(ruta_pdf)
         
         # Guardar resultado en JSON
-        with open(ruta_salida, 'w', encoding='utf-8') as f:
+        with open(paths['json'], 'w', encoding='utf-8') as f:
             json.dump(resultado, f, ensure_ascii=False, indent=2)
         
-        logger.info(f"Archivo JSON generado: {ruta_salida}")
-        return resultado
+        logger.info(f"Archivo JSON generado: {paths['json']}")
+        return resultado, paths
         
     except Exception as e:
         logger.error(f"Error durante el procesamiento: {str(e)}")
@@ -227,4 +236,4 @@ def procesar_archivo(ruta_pdf: str, ruta_salida: str = None) -> Dict:
 
 if __name__ == "__main__":
     ruta_pdf = "/Users/tom/70061797449-12.pdf"
-    resultado = procesar_archivo(ruta_pdf)
+    resultado, paths = procesar_archivo(ruta_pdf)

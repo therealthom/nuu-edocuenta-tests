@@ -1,21 +1,46 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+
+# Ambiente virtual
+.env
+.venv/
+venv/
+ENV/
 
 # Archivos generados
-logs/
-*.log
-transacciones*.json
+resources/uploads/*/temp/*
+resources/uploads/*/logs/*
+resources/uploads/*/output/*
+!resources/uploads/*/.gitkeep
+!resources/uploads/*/temp/.gitkeep
+!resources/uploads/*/logs/.gitkeep
+!resources/uploads/*/output/.gitkeep
+
+# IDEs y editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
 
 # PDFs y documentos
 *.pdf
 *.PDF
 
-# Ambiente
-.env
-venv/
-.venv/
-.venv/*
-
-*.json
+# Archivos temporales
 temp/
+tmp/
+*.tmp
+
+# Logs
+*.log
+
+# Archivos de datos
+*.json
