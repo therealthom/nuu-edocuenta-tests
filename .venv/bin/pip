@@ -1,4 +1,4 @@
-#!/Users/tom/Development/Cursor/asf-tests/largefiles-service/.venv/bin/python
+#!/Users/tom/Development/Cursor/asf-tests/largefiles-service/.venv/bin/python3.12
 # -*- coding: utf-8 -*-
 import re
 import sys

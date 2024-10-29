@@ -1,4 +1,4 @@
-#!/Users/tom/Development/Cursor/asf-tests/largefiles-service/.venv/bin/python
+#!/Users/tom/Development/Cursor/asf-tests/largefiles-service/.venv/bin/python3.12
 """Extract pdf structure in XML format"""
 import logging
 import os.path

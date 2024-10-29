@@ -1,4 +1,4 @@
-#!/Users/tom/Development/Cursor/asf-tests/largefiles-service/.venv/bin/python
+#!/Users/tom/Development/Cursor/asf-tests/largefiles-service/.venv/bin/python3.12
 """A command line tool for extracting text and images from PDF and
 output it to plain text, html, xml or tags."""
 import argparse

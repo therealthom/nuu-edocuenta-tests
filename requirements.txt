@@ -1,2 +1,6 @@
 pdfplumber
-python-dotenv
+streamlit
+python-dateutil
+typing-extensions
+pandas
+numpy
