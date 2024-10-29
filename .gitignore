@@ -15,6 +15,7 @@ transacciones*.json
 .env
 venv/
 .venv/
+.venv/*
 
 *.json
 temp/
