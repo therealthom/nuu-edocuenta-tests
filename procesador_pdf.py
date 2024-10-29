@@ -80,7 +80,14 @@ class ProcesadorEstadoCuenta:
     def __init__(self):
         self.patron_fecha = re.compile(r'^\d{2}\s+[A-Z]{3}\b')
         self.patron_monto = re.compile(r'[\d,]+\.\d{2}')
+        self.patron_identificador_pagina = re.compile(r'^\d+\.([A-Z]|[0-9])+\.([A-Z]|[0-9])+\.\d+\.\d+$')
+        self.patron_encabezado_columnas = re.compile(r'^FECHA\s+CONCEPTO\s+RETIROS\s+DEPOSITOS\s+SALDO$')
         self.reglas = ReglasNegocio()
+        self.ignorar_lineas = False
+    
+    def _es_identificador_pagina(self, linea: str) -> bool:
+        """Verifica si una línea es un identificador de página"""
+        return bool(self.patron_identificador_pagina.match(linea.strip()))
     
     def _limpiar_monto(self, monto: str) -> Optional[str]:
         """Limpia y formatea un monto"""
@@ -107,7 +114,6 @@ class ProcesadorEstadoCuenta:
         transacciones = []
         transaccion_actual = None
         lineas_concepto = []
-        en_detalle_operaciones = False
         
         logger.info(f"Iniciando procesamiento del PDF: {ruta_pdf}")
         
@@ -119,34 +125,56 @@ class ProcesadorEstadoCuenta:
                 logger.info(f"\nProcesando página {num_pagina}")
                 
                 for linea in texto.split('\n'):
-                    linea = linea.strip()  # Limpiamos espacios al inicio y final
+                    linea = linea.strip()
+                    
+                    # Detectar final de la tabla de movimientos
+                    if 'SALDO MINIMO REQUERIDO' in linea:
+                        if transaccion_actual:
+                            logger.info("Última transacción completada:")
+                            logger.info(json.dumps(asdict(transaccion_actual), indent=2, ensure_ascii=False))
+                            transacciones.append(transaccion_actual)
+                        logger.info("Final de la tabla de movimientos encontrado")
+                        return {
+                            "estado_cuenta": {
+                                "movimientos": [asdict(t) for t in transacciones]
+                            }
+                        }
+                    
+                    # Si encontramos un identificador de página, activamos el flag para ignorar líneas
+                    if self._es_identificador_pagina(linea):
+                        self.ignorar_lineas = True
+                        logger.info(f"Saltando identificador de página: {linea}")
+                        continue
+                    
+                    # Si estamos ignorando líneas, buscamos DETALLE DE OPERACIONES
+                    if self.ignorar_lineas:
+                        if "DETALLE DE OPERACIONES" in linea:
+                            # Encontramos la sección pero seguimos ignorando hasta encontrar los encabezados
+                            continue
+                        elif self.patron_encabezado_columnas.match(linea):
+                            # Encontramos los encabezados, podemos volver a procesar
+                            self.ignorar_lineas = False
+                        continue
+                    
+                    # Procesamiento normal de las transacciones
                     if not linea:
                         continue
                     
-                    # Control de sección
-                    if 'DETALLE DE OPERACIONES' in linea:
-                        en_detalle_operaciones = True
-                        logger.info(f">>> Encontrada sección DETALLE DE OPERACIONES en página {num_pagina}")
-                        continue
-                    
-                    if not en_detalle_operaciones:
-                        continue
-                    
                     if self._es_fecha(linea):
-                        logger.info(f"\nNueva fecha encontrada: {linea[:7]}")  # Cambiado de 6 a 7 para incluir "DD MMM"
+                        logger.info(f"\nNueva fecha encontrada: {linea[:7]}")
                         
                         if transaccion_actual:
                             logger.info("Transacción completada:")
                             logger.info(json.dumps(asdict(transaccion_actual), indent=2, ensure_ascii=False))
                             transacciones.append(transaccion_actual)
                         
-                        # Limpiamos la línea y la fecha
+                        # Creamos nueva transacción
                         linea_limpia = linea.strip()
-                        fecha = linea_limpia[:7].strip()  # DD MMM y quitamos espacios extra
+                        fecha = linea_limpia[:7].strip()
                         concepto = linea_limpia[7:].strip()
                         
                         transaccion_actual = Transaccion(
-                            fecha=fecha.replace("  ", " "),  # Reemplazamos espacios múltiples por uno solo
+                            fecha=fecha.replace("  ", " "),
                             concepto=concepto,
                             retiro=None,
                             deposito=None,
@@ -154,8 +182,7 @@ class ProcesadorEstadoCuenta:
                             pagina=num_pagina
                         )
                         lineas_concepto = [concepto]
-                        logger.info(f"Nueva transacción creada con fecha: [{fecha.replace('  ', ' ')}]")
-                    
+                        
                     elif transaccion_actual:
                         if self.patron_monto.search(linea):
                             logger.info(f"Procesando línea con montos: {linea}")
@@ -167,12 +194,7 @@ class ProcesadorEstadoCuenta:
                             if retiro: transaccion_actual.retiro = retiro
                             if deposito: transaccion_actual.deposito = deposito
                             if saldo: transaccion_actual.saldo = saldo
-                            
-                            # Mostramos la transacción después de procesar montos
-                            logger.info("Transacción actualizada:")
-                            logger.info(json.dumps(asdict(transaccion_actual), indent=2, ensure_ascii=False))
                         else:
-                            # Solo concatenamos el concepto sin logging
                             lineas_concepto.append(linea.strip())
                             transaccion_actual.concepto = ' '.join(lineas_concepto).strip()
         
