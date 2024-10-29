@@ -109,6 +109,23 @@ class ProcesadorEstadoCuenta:
         montos = [self._limpiar_monto(m) for m in self.patron_monto.findall(linea)]
         return ReglasNegocio.procesar_montos(montos, concepto)
     
+    def _calcular_estadisticas(self, transacciones: List[Transaccion]) -> Dict:
+        """Calcula estadísticas de las transacciones procesadas"""
+        total_retiros = sum(1 for t in transacciones if t.retiro is not None)
+        total_depositos = sum(1 for t in transacciones if t.deposito is not None)
+        
+        suma_retiros = sum(float(t.retiro) for t in transacciones if t.retiro is not None)
+        suma_depositos = sum(float(t.deposito) for t in transacciones if t.deposito is not None)
+        
+        return {
+            "numero_transacciones": len(transacciones),
+            "cantidad_retiros": total_retiros,
+            "cantidad_depositos": total_depositos,
+            "suma_retiros": round(suma_retiros, 2),
+            "suma_depositos": round(suma_depositos, 2),
+            "balance_total": round(suma_depositos - suma_retiros, 2)
+        }
+
     def procesar_pdf(self, ruta_pdf: str) -> Dict:
         """Procesa el PDF y extrae las transacciones"""
         transacciones = []
@@ -133,10 +150,15 @@ class ProcesadorEstadoCuenta:
                             logger.info("Última transacción completada:")
                             logger.info(json.dumps(asdict(transaccion_actual), indent=2, ensure_ascii=False))
                             transacciones.append(transaccion_actual)
-                        logger.info("Final de la tabla de movimientos encontrado")
+                        
+                        estadisticas = self._calcular_estadisticas(transacciones)
+                        logger.info("\nEstadísticas del estado de cuenta:")
+                        logger.info(json.dumps(estadisticas, indent=2, ensure_ascii=False))
+                        
                         return {
                             "estado_cuenta": {
-                                "movimientos": [asdict(t) for t in transacciones]
+                                "movimientos": [asdict(t) for t in transacciones],
+                                "estadisticas": estadisticas
                             }
                         }
                     
