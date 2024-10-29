@@ -43,3 +43,20 @@ Aplicación web desarrollada con Streamlit para procesar estados de cuenta en fo
             ├── temp/
             ├── logs/
             └── output/
+
+## Características
+- Procesamiento múltiple de archivos PDF
+- Extracción automática de transacciones bancarias
+- Generación de archivos JSON estructurados
+- Sistema de logging detallado
+- Interfaz web intuitiva
+- Manejo de errores robusto
+
+## Desarrollo
+El proyecto utiliza las siguientes bibliotecas principales:
+- Streamlit para la interfaz web
+- pdfplumber para la extracción de texto de PDFs
+- pandas para el manejo de datos
+
+## Licencia
+Este proyecto está bajo la Licencia MIT.
