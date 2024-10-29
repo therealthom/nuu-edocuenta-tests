@@ -122,8 +122,7 @@ class ProcesadorEstadoCuenta:
             "cantidad_retiros": total_retiros,
             "cantidad_depositos": total_depositos,
             "suma_retiros": round(suma_retiros, 2),
-            "suma_depositos": round(suma_depositos, 2),
-            "balance_total": round(suma_depositos - suma_retiros, 2)
+            "suma_depositos": round(suma_depositos, 2)
         }
 
     def procesar_pdf(self, ruta_pdf: str) -> Dict:
