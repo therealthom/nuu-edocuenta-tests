@@ -53,16 +53,16 @@ class ProcesadorBase(ABC):
             if t.retiro is not None:
                 monto_retiro = self._limpiar_monto(t.retiro)
                 suma_retiros += monto_retiro
-                self.logger.info(f"Retiro encontrado: {t.retiro}")
-                self.logger.info(f"Monto limpio: {monto_retiro}")
-                self.logger.info(f"Suma parcial retiros: {suma_retiros}")
+                # self.logger.info(f"Retiro encontrado: {t.retiro}")
+                # self.logger.info(f"Monto limpio: {monto_retiro}")
+                # self.logger.info(f"Suma parcial retiros: {suma_retiros}")
             
             if t.deposito is not None:
                 monto_deposito = self._limpiar_monto(t.deposito)
                 suma_depositos += monto_deposito
-                self.logger.info(f"Depósito encontrado: {t.deposito}")
-                self.logger.info(f"Monto limpio: {monto_deposito}")
-                self.logger.info(f"Suma parcial depósitos: {suma_depositos}")
+                # self.logger.info(f"Depósito encontrado: {t.deposito}")
+                # self.logger.info(f"Monto limpio: {monto_deposito}")
+                # self.logger.info(f"Suma parcial depósitos: {suma_depositos}")
         
         estadisticas = {
             "numero_transacciones": len(transacciones),

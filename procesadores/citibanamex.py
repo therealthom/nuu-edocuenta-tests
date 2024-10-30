@@ -3,12 +3,21 @@ import json
 import logging
 import re
 import pdfplumber
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 from .base import ProcesadorBase, Transaccion
 
 logger = logging.getLogger(__name__)
 
 class ProcesadorCitibanamex(ProcesadorBase):
+    # Constantes para conceptos especiales
+    NUMERO_CHEQUES_EXENTOS = "NUMERO DE CHEQUES EXENTOS"
+    SALDO_MINIMO_REQUERIDO = "SALDO MINIMO REQUERIDO"
+    DETALLE_OPERACIONES = "DETALLE DE OPERACIONES"
+
+    # Constantes para tipos de transacciones
+    CONCEPTOS_DEPOSITO = ["PAGO RECIBIDO", "ABONO", "INTERESES PAGADOS", "VENTA"]
+    CONCEPTOS_RETIRO = ["RETIRO", "PAGO"]
+
     def __init__(self, logger: logging.Logger):
         super().__init__(logger)
         self.patron_fecha = re.compile(r'^\d{2}\s+[A-Z]{3}\b')
@@ -32,17 +41,22 @@ class ProcesadorCitibanamex(ProcesadorBase):
         deposito = None
         saldo = None
         
+        # Nueva validación para NUMERO DE CHEQUES EXENTOS
+        if self.NUMERO_CHEQUES_EXENTOS in concepto.upper():
+            if montos:
+                saldo = montos[0]
+                self.logger.info(f"Monto asignado como saldo por regla {self.NUMERO_CHEQUES_EXENTOS}: {saldo}")
+                return retiro, deposito, saldo
+        
         # Primero aplicamos las reglas de negocio basadas en el concepto
-        if any(palabra in concepto.upper() for palabra in ["PAGO RECIBIDO", "ABONO", "INTERESES PAGADOS"]):
-            # Si es un pago recibido o abono, el primer monto es un depósito
+        if any(palabra in concepto.upper() for palabra in self.CONCEPTOS_DEPOSITO):
             if montos:
                 deposito = montos[0]
-                self.logger.info(f"Monto asignado como depósito por regla de negocio (PAGO RECIBIDO/ABONO): {deposito}")
-        elif "RETIRO" in concepto.upper() or "PAGO" in concepto.upper():
-            # Si es un retiro o pago, el primer monto es un retiro
+                self.logger.info(f"Monto asignado como depósito por regla de negocio: {deposito}")
+        elif any(palabra in concepto.upper() for palabra in self.CONCEPTOS_RETIRO):
             if montos:
                 retiro = montos[0]
-                self.logger.info(f"Monto asignado como retiro por regla de negocio (RETIRO/PAGO): {retiro}")
+                self.logger.info(f"Monto asignado como retiro por regla de negocio: {retiro}")
         else:
             # Si no hay reglas específicas y hay un solo monto, se considera retiro por defecto
             if len(montos) == 1:
@@ -78,7 +92,7 @@ class ProcesadorCitibanamex(ProcesadorBase):
                         continue
                     
                     if self.ignorar_lineas:
-                        if "DETALLE DE OPERACIONES" in linea:
+                        if self.DETALLE_OPERACIONES in linea:
                             self.logger.info("Encontrado DETALLE DE OPERACIONES")
                             continue
                         elif self.patron_encabezado_columnas.match(linea):
@@ -140,7 +154,7 @@ class ProcesadorCitibanamex(ProcesadorBase):
                             transaccion_actual.concepto = ' '.join(lineas_concepto).strip()
                     
                     # Detectar final de la tabla de movimientos
-                    if 'SALDO MINIMO REQUERIDO' in linea:
+                    if self.SALDO_MINIMO_REQUERIDO in linea:
                         if transaccion_actual:
                             self.logger.info("----- Fin de última transacción -----")
                             self.logger.info(json.dumps(asdict(transaccion_actual), indent=2, ensure_ascii=False))
