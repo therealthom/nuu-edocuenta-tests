@@ -15,7 +15,7 @@ class ProcesadorCitibanamex(ProcesadorBase):
     DETALLE_OPERACIONES = "DETALLE DE OPERACIONES"
 
     # Constantes para tipos de transacciones
-    CONCEPTOS_DEPOSITO = ["PAGO RECIBIDO", "ABONO", "INTERESES PAGADOS", "VENTA"]
+    CONCEPTOS_DEPOSITO = ["PAGO RECIBIDO", "ABONO", "INTERESES PAGADOS", "VENTA", "SU RENDIMIENTO"]
     CONCEPTOS_RETIRO = ["RETIRO", "PAGO"]
 
     def __init__(self, logger: logging.Logger):

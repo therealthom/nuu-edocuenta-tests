@@ -15,7 +15,7 @@ class ProcesadorBBVA(ProcesadorBase):
     FIN_MOVIMIENTOS = "Total de Movimientos"
     
     # Constantes para tipos de transacciones
-    CONCEPTOS_DEPOSITO = ["RECIBIDO", "DEPOSITO", "INTERESES GANADOS"]
+    CONCEPTOS_DEPOSITO = ["RECIBIDO", "DEPOSITO", "INTERESES GANADOS", "COMPENSACION"]
     CONCEPTOS_RETIRO = ["ENVIADO", "TRASPASO A TERCEROS", "TRASPASO ENTRE CUENTAS"]
     
     # Constantes para patrones de expresiones regulares
