@@ -15,8 +15,21 @@ class ProcesadorCitibanamex(ProcesadorBase):
     DETALLE_OPERACIONES = "DETALLE DE OPERACIONES"
 
     # Constantes para tipos de transacciones
-    CONCEPTOS_DEPOSITO = ["PAGO RECIBIDO", "ABONO", "INTERESES PAGADOS", "VENTA", "SU RENDIMIENTO"]
-    CONCEPTOS_RETIRO = ["RETIRO", "PAGO"]
+    CONCEPTOS_DEPOSITO = [
+        "PAGO RECIBIDO",
+        "ABONO",
+        "INTERESES PAGADOS", 
+        "VENTA",
+        "SU RENDIMIENTO"
+    ]
+    CONCEPTOS_RETIRO = [
+        "RETIRO",
+        "PAGO A TERCEROS",
+        "PAGO INTERBANCARIO",
+        "COMISION COBRADA",
+        "IVA POR COMISION COBRADA",
+        "COBRO DE CHEQUE"
+    ]
 
     def __init__(self, logger: logging.Logger):
         super().__init__(logger)
@@ -33,6 +46,16 @@ class ProcesadorCitibanamex(ProcesadorBase):
     def _es_identificador_pagina(self, linea: str) -> bool:
         return bool(self.patron_identificador_pagina.match(linea.strip()))
 
+    def _es_concepto_retiro(self, concepto: str) -> bool:
+        """Verifica si el concepto comienza con alguna de las palabras clave de retiro"""
+        concepto_upper = concepto.upper()
+        return any(concepto_upper.startswith(keyword) for keyword in self.CONCEPTOS_RETIRO)
+
+    def _es_concepto_deposito(self, concepto: str) -> bool:
+        """Verifica si el concepto comienza con alguna de las palabras clave de depósito"""
+        concepto_upper = concepto.upper()
+        return any(concepto_upper.startswith(keyword) for keyword in self.CONCEPTOS_DEPOSITO)
+
     def _procesar_linea_montos(self, linea: str, concepto: str) -> Tuple[str | None, str | None, str | None]:
         montos = self.patron_monto.findall(linea)
         self.logger.info(f"Procesando montos: {montos}")
@@ -42,18 +65,18 @@ class ProcesadorCitibanamex(ProcesadorBase):
         saldo = None
         
         # Nueva validación para NUMERO DE CHEQUES EXENTOS
-        if self.NUMERO_CHEQUES_EXENTOS in concepto.upper():
+        if concepto.upper().startswith(self.NUMERO_CHEQUES_EXENTOS):
             if montos:
                 saldo = montos[0]
                 self.logger.info(f"Monto asignado como saldo por regla {self.NUMERO_CHEQUES_EXENTOS}: {saldo}")
                 return retiro, deposito, saldo
         
-        # Primero aplicamos las reglas de negocio basadas en el concepto
-        if any(palabra in concepto.upper() for palabra in self.CONCEPTOS_DEPOSITO):
+        # Aplicamos las reglas de negocio basadas en el concepto
+        if self._es_concepto_deposito(concepto):
             if montos:
                 deposito = montos[0]
                 self.logger.info(f"Monto asignado como depósito por regla de negocio: {deposito}")
-        elif any(palabra in concepto.upper() for palabra in self.CONCEPTOS_RETIRO):
+        elif self._es_concepto_retiro(concepto):
             if montos:
                 retiro = montos[0]
                 self.logger.info(f"Monto asignado como retiro por regla de negocio: {retiro}")
